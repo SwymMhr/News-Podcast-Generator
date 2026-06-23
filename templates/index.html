@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Podcast Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-4" style="max-width: 720px;">
+        <h1 class="mb-1">News Podcast Generator</h1>
+        <p class="text-muted mb-4">Select topics and options to generate a custom news podcast.</p>
+
+        <!-- Step indicator -->
+        <div class="d-flex justify-content-center mb-4 gap-2" id="step-indicator">
+            <span class="step-badge active" data-step="1">1. Topics</span>
+            <span class="step-badge" data-step="2">2. Sources</span>
+            <span class="step-badge" data-step="3">3. Script</span>
+            <span class="step-badge" data-step="4">4. Audio</span>
+        </div>
+
+        <!-- ==================== STEP 1: Topic Selection ==================== -->
+        <div id="step-1">
+            <div class="row g-3 mb-3">
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="country-select">Country</label>
+                    <select id="country-select" class="form-select">
+                        {% for country in countries %}
+                        <option value="{{ country }}" {% if country == 'USA' %}selected{% endif %}>{{ country }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="timeline-select">Timeline</label>
+                    <select id="timeline-select" class="form-select">
+                        {% for tl in timelimits %}
+                        <option value="{{ tl }}" {% if tl == 'Last Week' %}selected{% endif %}>{{ tl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label fw-semibold mb-0">Choose topics:</label>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()">Select All</button>
+                </div>
+                <div id="topic-chips" class="d-flex flex-wrap gap-2 mb-3">
+                    {% for topic in topics %}
+                    <button class="btn btn-outline-primary topic-chip" data-topic="{{ topic }}"
+                            onclick="toggleTopic(this)">{{ topic }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Search custom topic:</label>
+                <div class="input-group">
+                    <input type="text" id="custom-topic-input" class="form-control"
+                           placeholder="Type a topic and press Add..." maxlength="50">
+                    <button class="btn btn-primary" onclick="addCustomTopic()">Add</button>
+                </div>
+            </div>
+            <div id="selected-topics" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+            <div class="d-flex justify-content-between">
+                <div></div>
+                <button id="btn-step1-next" class="btn btn-success btn-lg" onclick="goToStep2()" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- ==================== STEP 2: Review Sources ==================== -->
+        <div id="step-2" class="d-none">
+            <h5 class="fw-semibold mb-1">Review News Sources</h5>
+            <p class="text-muted small mb-3">Articles found for each topic. Use <strong>Refresh</strong> to fetch new results.</p>
+            <div id="sources-container"></div>
+            <div id="sources-loading" class="text-center py-4 d-none">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <p class="text-muted">Refreshing sources...</p>
+            </div>
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToStep1()">Back</button>
+                <div>
+                    <button id="btn-refresh" class="btn btn-outline-primary me-2" onclick="refreshNews()">Refresh</button>
+                    <button id="btn-step2-next" class="btn btn-success" onclick="goToStep3()" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== STEP 3: Generate Script ==================== -->
+        <div id="step-3" class="d-none">
+            <h5 class="fw-semibold mb-3">Generate Podcast Script</h5>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold" for="model-select">AI Model</label>
+                <select id="model-select" class="form-select">
+                    {% for name, model_id in models.items() %}
+                    <option value="{{ model_id }}" {% if model_id == 'llama-3.3-70b-versatile' %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button id="btn-generate-script" class="btn btn-primary mb-3" onclick="generateScript()">Generate Script</button>
+            <div id="script-loading" class="text-center py-4 d-none">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <p class="text-muted">Generating script...</p>
+            </div>
+
+            <div id="script-result" class="d-none">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="fw-semibold mb-0">Transcript:</label>
+                    <button class="btn btn-sm btn-outline-primary" onclick="generateScript()">Refresh</button>
+                </div>
+                <pre id="script-display" class="bg-white border rounded p-3"
+                     style="white-space: pre-wrap; max-height: 50vh; overflow-y: auto;"></pre>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToStep2()">Back</button>
+                <button id="btn-step3-next" class="btn btn-success" onclick="goToStep4()" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- ==================== STEP 4: Generate Audio ==================== -->
+        <div id="step-4" class="d-none">
+            <h5 class="fw-semibold mb-3">Generate Audio</h5>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Voice:</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="voice" id="voice-female" value="female" checked>
+                        <label class="form-check-label" for="voice-female">Female</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="voice" id="voice-male" value="male">
+                        <label class="form-check-label" for="voice-male">Male</label>
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-generate-audio" class="btn btn-primary mb-3" onclick="generateAudio()">Generate Audio</button>
+            <div id="audio-loading" class="text-center py-4 d-none">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <p class="text-muted">Generating audio...</p>
+            </div>
+
+            <div id="audio-result" class="d-none">
+                <audio id="audio-player" controls class="w-100 mb-3"></audio>
+                <a id="download-link" class="btn btn-success w-100" download>Download Audio</a>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToStep3()">Back</button>
+                <div></div>
+            </div>
+        </div>
+
+    </div>
+
+    <style>
+        .step-badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            background: #e9ecef;
+            color: #6c757d;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .step-badge.active {
+            background: #0d6efd;
+            color: #fff;
+        }
+        .step-badge.done {
+            background: #198754;
+            color: #fff;
+        }
+    </style>
+
+    <script>
+        const selectedTopics = new Set();
+        let articlesByTopic = {};
+        let currentScript = "";
+
+        // ==================== Step Navigation ====================
+        function showStep(n) {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById("step-" + i).classList.toggle("d-none", i !== n);
+            }
+            document.querySelectorAll(".step-badge").forEach(el => {
+                const s = parseInt(el.dataset.step);
+                el.classList.toggle("active", s === n);
+                el.classList.toggle("done", s < n);
+            });
+            window.scrollTo({ top: 0 });
+        }
+
+        function goToStep1() { showStep(1); }
+
+        async function goToStep2() {
+            if (selectedTopics.size === 0) return;
+            showStep(2);
+            document.getElementById("sources-container").innerHTML = "";
+            document.getElementById("btn-step2-next").disabled = true;
+            document.getElementById("sources-loading").classList.remove("d-none");
+            document.getElementById("btn-refresh").disabled = true;
+            await fetchNews();
+            renderSources();
+            document.getElementById("sources-loading").classList.add("d-none");
+            document.getElementById("btn-refresh").disabled = false;
+            document.getElementById("btn-step2-next").disabled = Object.keys(articlesByTopic).length === 0;
+        }
+
+        function goToStep3() {
+            showStep(3);
+            document.getElementById("btn-step3-next").disabled = !currentScript;
+        }
+
+        function goToStep4() {
+            showStep(4);
+        }
+
+        // ==================== Step 1: Topic functions ====================
+        function toggleTopic(btn) {
+            const topic = btn.dataset.topic;
+            if (selectedTopics.has(topic)) {
+                selectedTopics.delete(topic);
+                btn.classList.remove("btn-primary");
+                btn.classList.add("btn-outline-primary");
+            } else {
+                selectedTopics.add(topic);
+                btn.classList.remove("btn-outline-primary");
+                btn.classList.add("btn-primary");
+            }
+            renderSelected();
+        }
+
+        function toggleSelectAll() {
+            const chips = document.querySelectorAll(".topic-chip");
+            const allSelected = Array.from(chips).every(c => selectedTopics.has(c.dataset.topic));
+            chips.forEach(btn => {
+                const topic = btn.dataset.topic;
+                if (allSelected) {
+                    selectedTopics.delete(topic);
+                    btn.classList.remove("btn-primary");
+                    btn.classList.add("btn-outline-primary");
+                } else {
+                    selectedTopics.add(topic);
+                    btn.classList.remove("btn-outline-primary");
+                    btn.classList.add("btn-primary");
+                }
+            });
+            renderSelected();
+        }
+
+        function addCustomTopic() {
+            const input = document.getElementById("custom-topic-input");
+            const topic = input.value.trim();
+            if (!topic || selectedTopics.has(topic)) return;
+            selectedTopics.add(topic);
+            input.value = "";
+            renderSelected();
+            const existing = document.querySelector(`.topic-chip[data-topic="${topic}"]`);
+            if (existing) {
+                existing.classList.remove("btn-outline-primary");
+                existing.classList.add("btn-primary");
+            }
+        }
+
+        document.getElementById("custom-topic-input").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addCustomTopic();
+        });
+
+        function renderSelected() {
+            const container = document.getElementById("selected-topics");
+            document.getElementById("btn-step1-next").disabled = selectedTopics.size === 0;
+            if (selectedTopics.size === 0) {
+                container.innerHTML = '<span class="text-muted small">No topics selected yet.</span>';
+                return;
+            }
+            container.innerHTML = "";
+            selectedTopics.forEach(topic => {
+                const chip = document.createElement("span");
+                chip.className = "badge bg-primary fs-6 d-inline-flex align-items-center gap-1";
+                chip.innerHTML = `${topic} <span style="cursor:pointer" onclick="removeTopic('${topic}')">&times;</span>`;
+                container.appendChild(chip);
+            });
+        }
+
+        function removeTopic(topic) {
+            selectedTopics.delete(topic);
+            const btn = document.querySelector(`.topic-chip[data-topic="${topic}"]`);
+            if (btn) {
+                btn.classList.remove("btn-primary");
+                btn.classList.add("btn-outline-primary");
+            }
+            renderSelected();
+        }
+
+        // ==================== Step 2: Fetch & Display Sources ====================
+        async function fetchNews() {
+            const country = document.getElementById("country-select").value;
+            const timelimit = document.getElementById("timeline-select").value;
+
+            const res = await fetch("/fetch-news", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    topics: Array.from(selectedTopics),
+                    country: country,
+                    timelimit: timelimit,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            articlesByTopic = data.articles_by_topic || {};
+        }
+
+        async function refreshNews() {
+            document.getElementById("btn-refresh").disabled = true;
+            document.getElementById("btn-step2-next").disabled = true;
+            document.getElementById("sources-loading").classList.remove("d-none");
+            document.getElementById("sources-container").innerHTML = "";
+            await fetchNews();
+            renderSources();
+            document.getElementById("sources-loading").classList.add("d-none");
+            document.getElementById("btn-refresh").disabled = false;
+            document.getElementById("btn-step2-next").disabled = Object.keys(articlesByTopic).length === 0;
+        }
+
+        function getDomain(url) {
+            try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+        }
+
+        function renderSources() {
+            const container = document.getElementById("sources-container");
+            const entries = Object.entries(articlesByTopic);
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="alert alert-warning">No news found for selected topics. Try Refresh or different settings.</div>';
+                return;
+            }
+            container.innerHTML = "";
+            for (const [topic, articles] of entries) {
+                const card = document.createElement("div");
+                card.className = "card mb-3";
+                let list = articles.map(a =>
+                    `<li class="list-group-item">
+                        <span>${a.title}</span>
+                        <div class="text-muted small mt-1">Source: ${getDomain(a.url)}${a.date ? ` &middot; ${a.date}` : ""}</div>
+                    </li>`
+                ).join("");
+                card.innerHTML = `
+                    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                        <span>${topic}</span>
+                        <span class="badge bg-secondary rounded-pill">${articles.length} articles</span>
+                    </div>
+                    <ul class="list-group list-group-flush">${list}</ul>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        // ==================== Step 3: Generate Script ====================
+        async function generateScript() {
+            document.getElementById("btn-generate-script").disabled = true;
+            document.getElementById("btn-step3-next").disabled = true;
+            document.getElementById("script-loading").classList.remove("d-none");
+            document.getElementById("script-result").classList.add("d-none");
+
+            const model = document.getElementById("model-select").value;
+
+            const res = await fetch("/generate-script", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    articles_by_topic: articlesByTopic,
+                    model: model,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                document.getElementById("script-loading").classList.add("d-none");
+                document.getElementById("btn-generate-script").disabled = false;
+                return;
+            }
+
+            currentScript = data.script;
+            document.getElementById("script-display").textContent = currentScript;
+            document.getElementById("script-loading").classList.add("d-none");
+            document.getElementById("script-result").classList.remove("d-none");
+            document.getElementById("btn-generate-script").disabled = false;
+            document.getElementById("btn-step3-next").disabled = false;
+        }
+
+        // ==================== Step 4: Generate Audio ====================
+        async function generateAudio() {
+            document.getElementById("btn-generate-audio").disabled = true;
+            document.getElementById("audio-loading").classList.remove("d-none");
+            document.getElementById("audio-result").classList.add("d-none");
+
+            const voice = document.querySelector('input[name="voice"]:checked').value;
+
+            const res = await fetch("/generate-audio", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    script: currentScript,
+                    voice: voice,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                document.getElementById("audio-loading").classList.add("d-none");
+                document.getElementById("btn-generate-audio").disabled = false;
+                return;
+            }
+
+            const player = document.getElementById("audio-player");
+            player.src = data.audio_url;
+            player.load();
+
+            const link = document.getElementById("download-link");
+            link.href = data.audio_url;
+            const filename = data.audio_url.split("/").pop();
+            link.download = filename;
+            link.textContent = `Download Audio (${filename})`;
+
+            document.getElementById("audio-loading").classList.add("d-none");
+            document.getElementById("audio-result").classList.remove("d-none");
+            document.getElementById("btn-generate-audio").disabled = false;
+        }
+
+        // Init
+        renderSelected();
+    </script>
+</body>
+</html>
